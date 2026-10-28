@@ -81,6 +81,9 @@ a = Analysis(
     datas=datas,
     hiddenimports=hiddenimports,
     hooksconfig=gi_hooksconfig,
+    # Pins GI_TYPELIB_PATH etc. to this bundle so GIRepository can't pick up
+    # a mismatched GTK install already on the user's machine (issue #1357).
+    runtime_hooks=[str(ROOT / "packaging" / "pyinstaller" / "hook-gtk_runtime.py")],
     # VTE, WebKitGTK and the Unix-only modules do not exist on Windows.
     excludes=["gi.repository.Vte", "gi.repository.WebKit", "tkinter"],
     noarchive=False,

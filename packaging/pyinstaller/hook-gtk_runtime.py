@@ -127,3 +127,36 @@ if sys.platform == "darwin":
     print(f"DEBUG: resources = {resources}")
     print(f"DEBUG: GI_TYPELIB_PATH = {os.environ.get('GI_TYPELIB_PATH', '')}")
     os.environ.pop("LD_LIBRARY_PATH", None)
+
+elif sys.platform == "win32":
+    # Onedir layout: sshPilot.exe next to an _internal folder holding the
+    # typelibs PyInstaller's GI hook collected (see sshpilot-windows.spec).
+    # Without pinning GI_TYPELIB_PATH here, GIRepository falls back to
+    # whatever is on the end user's machine (often nothing, sometimes a
+    # mismatched GTK install from an unrelated app), which can load a
+    # Gio-2.0.typelib that doesn't match the bundled _gi.pyd and crash
+    # overrides/Gio.py with "TypeError: must be an interface" (issue #1357).
+    internal = Path(sys.executable).resolve().parent / "_internal"
+    if not internal.exists():
+        internal = Path(getattr(sys, "_MEIPASS", Path.cwd()))
+
+    gi_paths = [internal / "gi_typelibs", internal / "girepository-1.0"]
+    typelib_path = os.pathsep.join(str(p) for p in gi_paths if p.exists())
+    if typelib_path:
+        os.environ["GI_TYPELIB_PATH"] = typelib_path
+
+    gschemas = internal / "share" / "glib-2.0" / "schemas"
+    if gschemas.exists():
+        os.environ["GSETTINGS_SCHEMA_DIR"] = str(gschemas)
+
+    pixbuf_module_dir = internal / "lib" / "gdk-pixbuf" / "loaders"
+    pixbuf_module_file = internal / "lib" / "gdk-pixbuf" / "loaders.cache"
+    if pixbuf_module_dir.exists():
+        os.environ["GDK_PIXBUF_MODULEDIR"] = str(pixbuf_module_dir)
+    if pixbuf_module_file.exists():
+        os.environ["GDK_PIXBUF_MODULE_FILE"] = str(pixbuf_module_file)
+
+    # Make sure the bundled GTK DLLs win over any GTK install already on
+    # the user's PATH (MSYS2, GIMP, etc.), the same ABI mismatch risk as
+    # the typelibs above.
+    os.environ["PATH"] = os.pathsep.join([str(internal), os.environ.get("PATH", "")])
